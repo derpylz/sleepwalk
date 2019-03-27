@@ -103,7 +103,7 @@ sleepwalk <- function( embeddings, featureMatrices = NULL, maxdists = NULL, poin
   for( i in 1:length(embeddings) ) {
     stopifnot( length( dim( embeddings[[i]] ) ) == 2 )
     stopifnot( length( dim( (featureMatrices %||% distances)[[oneFM %||% i]] ) ) == 2 )
-    stopifnot( ncol( embeddings[[i]] ) == 2 )
+    stopifnot( ncol( embeddings[[i]] ) %in% c(2, 3) )
     stopifnot( nrow( embeddings[[i]] ) == nrow( (featureMatrices %||% distances)[[oneFM %||% i]] ) )
     embeddings[[i]] <- as.matrix(embeddings[[i]])
     if(!is.null(featureMatrices)) {
