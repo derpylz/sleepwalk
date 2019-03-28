@@ -1,6 +1,10 @@
 # sleepwalk
 Exploring dimension-reduced embeddings
 
+**Forked from anders-biostat/sleepwalk to integrate 3d embedding visualization**
+
+(also see [3dSCVis](https://github.com/derpylz/3dscvis))
+
 This is the code repository. **See [here](https://anders-biostat.github.io/sleepwalk/) for the Sleepwalk web page.**
 
 ## License and disclaimer
