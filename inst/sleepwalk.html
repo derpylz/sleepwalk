@@ -121,15 +121,13 @@ set_up_chart = function() {
    distance[i] = distance[0];
    
    for( var ch = 0; ch < n_charts; ch++ ) {
-      if (chartDims[ch] == 2) {
-         allCharts.push("2d");
          //define all the scales   	
          setColourScale(ch); // distance -> colour
          setAxisScale(ch);	// distance -> position of the legend axis
          setEmbeddingScales(ch); //embedding coordinates -> position on the plot
 
-
-
+      if (chartDims[ch] == 2) {
+         allCharts.push("2d");
          //define colour gradient for the legend
          d3.select("#chart" + ch)
             .append("defs")
@@ -284,10 +282,17 @@ set_up_chart = function() {
             var vis = new SCVis("chart" + ch, embedding[ch]);
             vis.createScene();
             vis.doRender();
-            vis.enablePicking();
             vis.hideLegend();
-            allCharts.push(vis);
+
+            mouseOver = (function(ch) {
+               return function(selection) {
+                  centerCell = [ch, selection];
+                  window["new_center_cell_" + mode]();
+               }
+            })(ch);
             
+            vis.enableMouseOver(mouseOver);
+            allCharts.push(vis);
          }
       }
 }
@@ -395,6 +400,9 @@ new_center_cell_A = function(retDists) {
             .selectAll(".point")
             .attr( "fill", function( d, i ) { return colourScale(dists[i]) } );
       } else {
+         var colourScale = (compare == "distances" ? colourScales[ch] : colourScales[centerCell[0]]),
+            dists = (compare == "distances" ? allDists[ch] : allDists[0]);
+
          var clArr = [];
          for(var i = 0; i < dists.length; i++) {
             clArr.push(colourScale(dists[i]));

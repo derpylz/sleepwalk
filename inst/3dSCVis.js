@@ -24,6 +24,12 @@ var SCVis = /** @class */ (function () {
         this._turned = 0;
         this._cellPicking = false;
         this._selectionCallback = function (selection) { return false; };
+        this._labels = [];
+        this._labelTexts = [];
+        this._showLabels = false;
+        this._labelSize = 100;
+        this._mouseOverCheck = false;
+        this._mouseOverCallback = function (selection) { return false; };
         this.turntable = false;
         this._coords = coords;
         this._canvas = document.getElementById(canvasElement);
@@ -107,6 +113,23 @@ var SCVis = /** @class */ (function () {
         else {
             this._playingTimeSeries = false;
             this._setTimeSeries = false;
+        }
+        if (this._showLabels) {
+            var axis1 = BABYLON.Vector3.Cross(this._camera.position, BABYLON.Axis.Y);
+            var axis3 = BABYLON.Vector3.Cross(axis1, this._camera.position);
+            var axis2 = BABYLON.Vector3.Cross(axis1, axis3);
+            for (var i = 0; i < this._labels.length; i++) {
+                this._labels[i].rotation = BABYLON.Vector3.RotationFromAxis(axis1, axis3, axis2);
+            }
+        }
+        if (this._mouseOverCheck) {
+            var pickResult = this._scene.pick(this._scene.pointerX, this._scene.pointerY);
+            var faceId = pickResult.faceId;
+            if (faceId == -1) {
+                return;
+            }
+            var idx = this._SPS.pickedParticles[faceId].idx;
+            this._mouseOverCallback(idx);
         }
     };
     /**
@@ -686,12 +709,89 @@ var SCVis = /** @class */ (function () {
         this._cellPicking = false;
     };
     /**
+     * Enable mouse over selection of cells
+     * @param selectionCallback Function that receives selection
+     */
+    SCVis.prototype.enableMouseOver = function (selectionCallback) {
+        this._mouseOverCheck = true;
+        if (selectionCallback) {
+            this._mouseOverCallback = selectionCallback;
+        }
+    };
+    /**
+     * disable mouse pointer selection
+     */
+    SCVis.prototype.disableMouseOver = function () {
+        this._mouseOverCheck = false;
+    };
+    /**
      * Change size of cells
      * @param size Cell size, default = 1
      */
     SCVis.prototype.changeCellSize = function (size) {
         this._size = size;
         this._updateCellSize();
+    };
+    SCVis.prototype.addLabel = function (text, moveCallback) {
+        var labelIdx = this._labels.length;
+        var plane = BABYLON.MeshBuilder.CreatePlane('label_' + labelIdx, {
+            width: 5,
+            height: 5
+        }, this._scene);
+        var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(plane);
+        var textBlock = new BABYLON.GUI.TextBlock();
+        textBlock.text = text;
+        textBlock.color = "black";
+        textBlock.fontSize = this._labelSize;
+        advancedTexture.addControl(textBlock);
+        this._labelTexts.push(textBlock);
+        var labelDragBehavior = new BABYLON.PointerDragBehavior();
+        labelDragBehavior.onDragEndObservable.add(function () {
+            if (moveCallback) {
+                moveCallback(plane.position);
+            }
+            else {
+                console.log([plane.position.x, plane.position.y, plane.position.z]);
+            }
+        });
+        plane.addBehavior(labelDragBehavior);
+        this._labels.push(plane);
+        this._showLabels = true;
+        return labelIdx;
+    };
+    SCVis.prototype.changeLabelSize = function (size) {
+        this._labelSize = size;
+        for (var i = 0; i < this._labelTexts.length; i++) {
+            this._labelTexts[i].fontSize = size;
+        }
+    };
+    SCVis.prototype.positionLabel = function (labelIdx, position) {
+        var pos = BABYLON.Vector3.FromArray(position);
+        this._labels[labelIdx].position = pos;
+    };
+    SCVis.prototype.showShadows = function () {
+        this._pointLight = new BABYLON.PointLight('pointlight', new BABYLON.Vector3(-5, 30, -5), this._scene);
+        this._ground = BABYLON.MeshBuilder.CreateGround('ground', {
+            width: 100,
+            height: 100
+        }, this._scene);
+        this._hl1.diffuse = new BABYLON.Color3(0.8, 0.8, 0.8);
+        this._hl2.diffuse = new BABYLON.Color3(0.4, 0.4, 0.4);
+        var ymin = this._SPS.mesh.getBoundingInfo().boundingBox.minimumWorld.y;
+        this._ground.position.y = ymin - 5;
+        this._shadowGenerator = new BABYLON.ShadowGenerator(1024, this._pointLight);
+        this._shadowGenerator.addShadowCaster(this._SPS.mesh);
+        this._shadowGenerator.useBlurExponentialShadowMap = true;
+        this._shadowGenerator.useKernelBlur = true;
+        this._shadowGenerator.blurKernel = 64;
+        this._ground.receiveShadows = true;
+    };
+    SCVis.prototype.hideShadows = function () {
+        this._pointLight = null;
+        this._ground = null;
+        this._shadowGenerator = null;
+        this._hl1.diffuse = new BABYLON.Color3(1, 1, 1);
+        this._hl2.diffuse = new BABYLON.Color3(0.8, 0.8, 0.8);
     };
     /**
      * Start rendering the scene
