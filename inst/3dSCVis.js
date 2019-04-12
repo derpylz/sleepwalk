@@ -7,8 +7,9 @@ var SCVis = /** @class */ (function () {
      * Initialize the 3d visualization
      * @param canvasElement ID of the canvas element in the dom
      * @param coords Array of arrays containing the 3d coordinates of the cells
+     * @param parameters Initialize with optional parameters.
      */
-    function SCVis(canvasElement, coords) {
+    function SCVis(canvasElement, coords, parameters) {
         this._showLegend = true;
         this._size = 1;
         this._rotationRate = 0.01;
@@ -25,15 +26,51 @@ var SCVis = /** @class */ (function () {
         this._cellPicking = false;
         this._selectionCallback = function (selection) { return false; };
         this._labels = [];
+        this._labelBackgrounds = [];
         this._labelTexts = [];
         this._showLabels = false;
         this._labelSize = 100;
+        this._showShadows = false;
         this._mouseOverCheck = false;
         this._mouseOverCallback = function (selection) { return false; };
+        this._isAnaglyph = false;
         this.turntable = false;
         this._coords = coords;
         this._canvas = document.getElementById(canvasElement);
         this._engine = new BABYLON.Engine(this._canvas, true);
+        // initialize with optional parameters
+        if (parameters) {
+            if (parameters.turntable) {
+                this.turntable = parameters.turntable;
+            }
+            if (parameters.selectionCube) {
+                this._showSelectCube = parameters.selectionCube;
+            }
+            if (parameters.size) {
+                this._size = parameters.size;
+            }
+            if (parameters.isTimeSeries) {
+                this._isTimeSeries = parameters.isTimeSeries;
+            }
+            if (parameters.playingTimeSeries) {
+                this._playingTimeSeries = parameters.playingTimeSeries;
+            }
+            if (parameters.timeSeriesIndex) {
+                this._timeSeriesIndex = parameters.timeSeriesIndex;
+            }
+            if (parameters.timeSeriesSpeed) {
+                this._timeSeriesSpeed = parameters.timeSeriesSpeed;
+            }
+            if (parameters.labelSize) {
+                this._labelSize = parameters.labelSize;
+            }
+            if (parameters.showShadows) {
+                this._showShadows = parameters.showShadows;
+            }
+            if (parameters.isAnaglyph) {
+                this._isAnaglyph = parameters.isAnaglyph;
+            }
+        }
     }
     /**
      * Create the scene with camera, lights and the solid particle system
@@ -58,9 +95,16 @@ var SCVis = /** @class */ (function () {
         this._createCellParticles();
         this._cameraFitCells();
         this._createSelectionCube();
+        if (this._showShadows) {
+            this._setupShadows();
+        }
+        if (this._isAnaglyph) {
+            this._setupAnaglyph();
+        }
         this._scene.registerBeforeRender(this._prepRender.bind(this));
         this._scene.registerAfterRender(this._afterRender.bind(this));
         this._scene.onPointerDown = this._cellPicker.bind(this);
+        return this;
     };
     SCVis.prototype._cellPicker = function (_evt, pickResult) {
         if (this._cellPicking) {
@@ -130,6 +174,23 @@ var SCVis = /** @class */ (function () {
             }
             var idx = this._SPS.pickedParticles[faceId].idx;
             this._mouseOverCallback(idx);
+        }
+        if (this._showLabels) {
+            var meshUnderPointer = this._scene.meshUnderPointer;
+            var labelIdx = this._labels.indexOf(meshUnderPointer);
+            if (labelIdx != -1) {
+                for (var i = 0; i < this._labelBackgrounds.length; i++) {
+                    if (i != labelIdx) {
+                        this._labelBackgrounds[i].alpha = 0;
+                    }
+                }
+                this._labelBackgrounds[labelIdx].alpha = 1;
+            }
+            else {
+                for (var i = 0; i < this._labelBackgrounds.length; i++) {
+                    this._labelBackgrounds[i].alpha = 0;
+                }
+            }
         }
     };
     /**
@@ -432,14 +493,15 @@ var SCVis = /** @class */ (function () {
         if (this._isTimeSeries) {
             this._updateTimeSeriesCells();
         }
+        return this;
     };
     /**
      * Color cells by continuous values
      * @param values Array of same length as cells
      */
     SCVis.prototype.colorByValue = function (values) {
-        this._colors = chroma.scale(chroma.brewer.Viridis).mode('lch').colors(100);
-        for (var i = 0; i < 100; i++) {
+        this._colors = chroma.scale(chroma.brewer.Viridis).mode('lch').colors(256);
+        for (var i = 0; i < 256; i++) {
             this._colors[i] += "ff";
         }
         this._clusters = this._evenBins(values);
@@ -455,7 +517,12 @@ var SCVis = /** @class */ (function () {
         if (this._isTimeSeries) {
             this._updateTimeSeriesCells();
         }
+        return this;
     };
+    /**
+     * Directly pass colors for the visualization
+     * @param colors array of colors for cells, either in "rgb(255,255,255)" or "#ffffff" format
+     */
     SCVis.prototype.colorDirectly = function (colors) {
         if (this._legend) {
             this._legend.dispose();
@@ -473,6 +540,7 @@ var SCVis = /** @class */ (function () {
             this._SPS.particles[i].color = BABYLON.Color4.FromHexString(cl);
         }
         this._SPS.setParticles();
+        return this;
     };
     /**
      * Puts values into evenly spaced bins defined by the number of bins.
@@ -480,7 +548,7 @@ var SCVis = /** @class */ (function () {
      * @param binCount number of bins to create
      */
     SCVis.prototype._evenBins = function (vals, binCount) {
-        if (binCount === void 0) { binCount = 100; }
+        if (binCount === void 0) { binCount = 256; }
         var N = vals.length;
         var binSize = Math.floor(N / binCount);
         var binSizeArr = Array(binCount).fill(binSize);
@@ -616,6 +684,7 @@ var SCVis = /** @class */ (function () {
             this._showLegend = true;
             this._createLegend;
         }
+        return this;
     };
     /**
      * Hide the legend
@@ -625,6 +694,7 @@ var SCVis = /** @class */ (function () {
             this._legend.dispose();
         }
         this._showLegend = false;
+        return this;
     };
     /**
      * Show a cube for interactive selection of cells
@@ -637,6 +707,7 @@ var SCVis = /** @class */ (function () {
         if (selectionCallback) {
             this._selectionCallback = selectionCallback;
         }
+        return this;
     };
     /**
      * Hide the selection cube
@@ -645,30 +716,35 @@ var SCVis = /** @class */ (function () {
         this._showSelectCube = false;
         this._selectionCube.visibility = 0;
         this._selectionGizmo.gizmoLayer.shouldRender = false;
+        return this;
     };
     /**
      * Display the cell colors as a time series
      */
     SCVis.prototype.enableTimeSeries = function () {
         this._isTimeSeries = true;
+        return this;
     };
     /**
      * Return to normal color mode
      */
     SCVis.prototype.disableTimeSeries = function () {
         this._isTimeSeries = false;
+        return this;
     };
     /**
      * Go through time series automatically
      */
     SCVis.prototype.playTimeSeries = function () {
         this._playingTimeSeries = true;
+        return this;
     };
     /**
      * Pause playback of the time series
      */
     SCVis.prototype.pauseTimeSeries = function () {
         this._playingTimeSeries = false;
+        return this;
     };
     /**
      * Set speed of time series playback
@@ -676,6 +752,7 @@ var SCVis = /** @class */ (function () {
      */
     SCVis.prototype.setTimeSeriesSpeed = function (speed) {
         this._timeSeriesSpeed = speed;
+        return this;
     };
     /**
      * Color the cells at the specified time series index
@@ -685,12 +762,14 @@ var SCVis = /** @class */ (function () {
         this._timeSeriesIndex = index;
         this._setAllCellsInvisible();
         this._updateTimeSeriesCells();
+        return this;
     };
     /**
      * Record an animated gif of the cell embedding
      */
     SCVis.prototype.startRecording = function () {
         this._record = true;
+        return this;
     };
     /**
      * Enable mouse pointer selection of cells
@@ -701,12 +780,14 @@ var SCVis = /** @class */ (function () {
         if (selectionCallback) {
             this._selectionCallback = selectionCallback;
         }
+        return this;
     };
     /**
      * disable mouse pointer selection
      */
     SCVis.prototype.disablePicking = function () {
         this._cellPicking = false;
+        return this;
     };
     /**
      * Enable mouse over selection of cells
@@ -717,12 +798,14 @@ var SCVis = /** @class */ (function () {
         if (selectionCallback) {
             this._mouseOverCallback = selectionCallback;
         }
+        return this;
     };
     /**
      * disable mouse pointer selection
      */
     SCVis.prototype.disableMouseOver = function () {
         this._mouseOverCheck = false;
+        return this;
     };
     /**
      * Change size of cells
@@ -731,14 +814,27 @@ var SCVis = /** @class */ (function () {
     SCVis.prototype.changeCellSize = function (size) {
         this._size = size;
         this._updateCellSize();
+        return this;
     };
+    /**
+     * Add a 3d label to the plot
+     * @param text Label title
+     * @param [moveCallback] On dragging of label in 3d plot, the final position will be passed to this function
+     */
     SCVis.prototype.addLabel = function (text, moveCallback) {
         var labelIdx = this._labels.length;
         var plane = BABYLON.MeshBuilder.CreatePlane('label_' + labelIdx, {
             width: 5,
             height: 5
         }, this._scene);
+        var ymax = this._SPS.mesh.getBoundingInfo().boundingBox.maximumWorld.y;
+        plane.position.y = ymax + 2;
         var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(plane);
+        var background = new BABYLON.GUI.Rectangle();
+        background.color = "red";
+        background.alpha = 0;
+        advancedTexture.addControl(background);
+        this._labelBackgrounds.push(background);
         var textBlock = new BABYLON.GUI.TextBlock();
         textBlock.text = text;
         textBlock.color = "black";
@@ -759,17 +855,31 @@ var SCVis = /** @class */ (function () {
         this._showLabels = true;
         return labelIdx;
     };
+    /**
+     * Change font size of all 3d labels in plot
+     * @param size Font size of all labels. Default: 100
+     */
     SCVis.prototype.changeLabelSize = function (size) {
         this._labelSize = size;
         for (var i = 0; i < this._labelTexts.length; i++) {
             this._labelTexts[i].fontSize = size;
         }
+        return this;
     };
+    /**
+     * Move Label to a new position
+     * @param labelIdx Index of label
+     * @param position New position of label in 3d space; array of x, y, z positions
+     */
     SCVis.prototype.positionLabel = function (labelIdx, position) {
         var pos = BABYLON.Vector3.FromArray(position);
         this._labels[labelIdx].position = pos;
+        return this;
     };
-    SCVis.prototype.showShadows = function () {
+    /**
+     * Adds a point-light, a ground and enables shadow casting
+     */
+    SCVis.prototype._setupShadows = function () {
         this._pointLight = new BABYLON.PointLight('pointlight', new BABYLON.Vector3(-5, 30, -5), this._scene);
         this._ground = BABYLON.MeshBuilder.CreateGround('ground', {
             width: 100,
@@ -786,12 +896,65 @@ var SCVis = /** @class */ (function () {
         this._shadowGenerator.blurKernel = 64;
         this._ground.receiveShadows = true;
     };
+    /**
+     * Enable shadow casting of cells
+     */
+    SCVis.prototype.showShadows = function () {
+        if (!this._showShadows) {
+            this._setupShadows();
+        }
+        this._showShadows = true;
+        return this;
+    };
+    /**
+     * Disable shadow casting of cells
+     */
     SCVis.prototype.hideShadows = function () {
-        this._pointLight = null;
-        this._ground = null;
-        this._shadowGenerator = null;
-        this._hl1.diffuse = new BABYLON.Color3(1, 1, 1);
-        this._hl2.diffuse = new BABYLON.Color3(0.8, 0.8, 0.8);
+        if (this._showShadows) {
+            this._pointLight.dispose();
+            this._ground.dispose();
+            this._shadowGenerator.dispose();
+            this._hl1.diffuse = new BABYLON.Color3(1, 1, 1);
+            this._hl2.diffuse = new BABYLON.Color3(0.8, 0.8, 0.8);
+        }
+        this._showShadows = false;
+        return this;
+    };
+    /**
+     * Enable anaglyph (red, cyan) representation
+     */
+    SCVis.prototype.makeAnaglyph = function () {
+        if (!this._isAnaglyph) {
+            this._setupAnaglyph();
+        }
+        this._isAnaglyph = true;
+        return this;
+    };
+    /**
+     * Creates new anaglyph camera and sets it as active
+     */
+    SCVis.prototype._setupAnaglyph = function () {
+        this._camera.dispose();
+        this._camera = new BABYLON.AnaglyphArcRotateCamera("Camera", 0, 0, 10, BABYLON.Vector3.Zero(), 0.033, this._scene);
+        this._camera.attachControl(this._canvas, true);
+        this._camera.wheelPrecision = 50;
+        this._cameraFitCells();
+        this._scene.activeCamera = this._camera;
+    };
+    /**
+     * Disable anaglyph representation
+     */
+    SCVis.prototype.removeAnaglyph = function () {
+        if (this._isAnaglyph) {
+            this._camera.dispose();
+            this._camera = new BABYLON.ArcRotateCamera("Camera", 0, 0, 10, BABYLON.Vector3.Zero(), this._scene);
+            this._camera.attachControl(this._canvas, true);
+            this._camera.wheelPrecision = 50;
+            this._cameraFitCells();
+            this._scene.activeCamera = this._camera;
+        }
+        this._isAnaglyph = false;
+        return this;
     };
     /**
      * Start rendering the scene
@@ -804,6 +967,7 @@ var SCVis = /** @class */ (function () {
         window.addEventListener('resize', function () {
             _this._engine.resize();
         });
+        return this;
     };
     return SCVis;
 }());

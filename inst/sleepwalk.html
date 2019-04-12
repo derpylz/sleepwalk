@@ -280,9 +280,7 @@ set_up_chart = function() {
             }(ch));
          } else {
             var vis = new SCVis("chart" + ch, embedding[ch]);
-            vis.createScene();
-            vis.doRender();
-            vis.hideLegend();
+            vis.createScene().doRender().hideLegend();
 
             mouseOver = (function(ch) {
                return function(selection) {
